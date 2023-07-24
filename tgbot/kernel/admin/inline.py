@@ -2,8 +2,12 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 
 class InlineKeyboard:
-    @classmethod
-    def main_menu_kb(cls):
+
+    def __init__(self):
+        pass
+
+    @staticmethod
+    def main_menu_kb():
         keyboard = [
             [
                 InlineKeyboardButton(text="Аккаунты Garantex", callback_data="accounts"),
@@ -11,20 +15,18 @@ class InlineKeyboard:
         ]
         return InlineKeyboardMarkup(inline_keyboard=keyboard)
 
-    @classmethod
-    def home_kb(cls):
-        keyboard = [cls.home_button()]
+    def home_kb(self):
+        keyboard = [self._home_button()]
         return InlineKeyboardMarkup(inline_keyboard=keyboard)
 
     @staticmethod
-    def home_button():
+    def _home_button():
         return [InlineKeyboardButton(text="🏡 На главную", callback_data="home")]
 
 
 class AccountsInlineKeyboard(InlineKeyboard):
 
-    @classmethod
-    def accounts_list_kb(cls, accounts: list):
+    def accounts_list_kb(self, accounts: list):
         keyboard = []
         for account in accounts:
             emodji = {
@@ -39,5 +41,5 @@ class AccountsInlineKeyboard(InlineKeyboard):
                 ]
             )
         keyboard.append([InlineKeyboardButton(text="➕ Добавить аккаунт", callback_data=f"account:create")])
-        keyboard.append(cls.home_button())
+        keyboard.append(self._home_button())
         return InlineKeyboardMarkup(inline_keyboard=keyboard)

@@ -1,5 +1,9 @@
-from cryptography.fernet import Fernet
-# Генерация ключа
-key = Fernet.generate_key()
+def test(string: list, a: str) -> str:
+    for s in string:
+        if s == a:
+            return True
+    return False
 
-print(key)
+
+r = test(string="qwerty", a="i")
+print(r)

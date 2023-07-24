@@ -35,6 +35,7 @@ class Miscellaneous:
 class Parameters:
     client_commission: float
     worker_commission: float
+    deposit_commission: float
 
 
 @dataclass
@@ -73,6 +74,7 @@ def load_config(path: str = None):
         ),
         params=Parameters(
             client_commission=0.05,
-            worker_commission=0.02
+            worker_commission=0.02,
+            deposit_commission=0.0025
         )
     )

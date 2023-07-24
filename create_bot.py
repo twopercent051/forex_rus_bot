@@ -15,7 +15,8 @@ r = redis.Redis(host=config.rds.host, port=config.rds.port, db=config.rds.db)
 storage = RedisStorage(redis=r) if config.tg_bot.use_redis else MemoryStorage()
 bot = Bot(token=config.tg_bot.token, parse_mode='HTML')
 dp = Dispatcher()
-scheduler = AsyncIOScheduler()
+scheduler = AsyncIOScheduler(timezone="UTC")
+scheduler.add_jobstore('redis', jobs_key='scheduler_jobs', run_times_key='scheduler_time')
 
 logger = logging.getLogger(__name__)
 log_level = logging.INFO

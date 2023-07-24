@@ -10,7 +10,7 @@ class RedisConnector:
 
     @classmethod
     def redis_start(cls):
-        r.set("worker", json.dumps(list()))
+        # r.set("worker", json.dumps(list()))
         # r.set("moderator", json.dumps(list()))
         logger.info('Redis connected OK')
 

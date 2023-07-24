@@ -42,7 +42,6 @@ class GarantexAPI:
                             json={'kid': uid, 'jwt_token': jwt_token})
         if ret.status_code != 200:
             return None
-        print(ret.json())
         return ret.json().get('token')
 
     @classmethod
@@ -58,12 +57,29 @@ class GarantexAPI:
                            data={'currency': "usdt"})
         return ret.json()
 
-    @classmethod
-    async def get_currency(cls):
+    @staticmethod
+    async def get_currency():
         ret = requests.get('https://garantex.io/api/v2/trades',
                            data={'market': "usdtrub", "limit": 20})
         average = 0
         for item in ret.json():
             average += float(item["price"])
-        return round(average / 20, 2)
+        return int((average * 100) / 20)
+
+    # @classmethod
+    # async def get_client_currency(cls):
+    #     market_currency = await cls.get_currency()
+    #     return market_currency * (1 - config.params.client_commission)
+
+    @classmethod
+    async def get_deposit_history(cls, account_id: int, start_time: datetime, coin_value: float) -> bool:
+        token = await cls.get_jwt(account_id=account_id)
+        ret = requests.get('https://garantex.io/api/v2/deposits',
+                           headers={'Authorization': f'Bearer {token}'},
+                           data={'currency': "usdt", "start_time": start_time, "status": "accepted"})
+        result = ret.json()
+        for item in result:
+            if float(item["amount"]) * (1 - 0.007) <= coin_value <= float(item["amount"]):
+                return True
+        return False
 

@@ -1,3 +1,4 @@
+from typing import Literal
 
 from sqlalchemy import MetaData, inspect, Column, String, insert, select, Integer, DateTime, delete, DECIMAL, JSON, \
     TEXT, update, TIMESTAMP, Boolean
@@ -50,28 +51,33 @@ class WorkersDB(Base):
     username = Column(String, nullable=False)
     wallet = Column(String, nullable=True)
     general_status = Column(String, nullable=False, default="off")  # off on deleted
-    sber_status = Column(String, nullable=False, default="off")  # off on
-    tinkoff_status = Column(String, nullable=False, default="off")  # off on
+    bank_status = Column(JSON, nullable=False, default={"SBERBANK": "off", "TINKOFF": "off"})
+    total_month = Column(Integer, nullable=False, default=0)
 
 
-class TransactionsDB(Base):
+class OrdersDB(Base):
     """Заявки на перевод"""
-    __tablename__ = "transactions"
+    __tablename__ = "orders"
 
     id = Column(Integer, nullable=False, autoincrement=True, primary_key=True)
     dtime = Column(TIMESTAMP, nullable=False, server_default=UtcNow())
     client_id = Column(String, nullable=False)
     client_username = Column(String, nullable=False)
     coin = Column(String, nullable=False, default="USDT")  # USDT
-    coin_value = Column(DECIMAL, nullable=False)
-    course = Column(DECIMAL, nullable=False)
+    coin_value = Column(Integer, nullable=False)
+    currency = Column(Integer, nullable=False)
     bank_name = Column(String, nullable=False)
     bank_account = Column(String, nullable=False)
-    fiat_value = Column(DECIMAL, nullable=False)
-    status = Column(String, nullable=False, default="created")  # created paid_client paid_worker accepted refused finished
-    worker_id = Column(String, nullable=False)
+    client_fiat = Column(Integer, nullable=False)
+    worker_fiat = Column(Integer, nullable=False)
+    profit_fiat = Column(Integer, nullable=False)
+    status = Column(String, nullable=False, default="created")  # created paid_client paid_worker (accepted refused) finished cancelled
+    worker_id = Column(String, nullable=True)
     moderator_id = Column(String, nullable=True)
     crypto_account = Column(JSON, nullable=False)  # title + id
+    comment = Column(TEXT, nullable=True)
+    stop_list = Column(JSON, nullable=False, default=[])
+    refuse_comments = Column(JSON, nullable=False, default=[])
 
 
 class CryptoAccountsDB(Base):
@@ -123,9 +129,8 @@ class BaseDAO:
     async def create(cls, **data):
         async with async_session_maker() as session:
             stmt = insert(cls.model).values(**data)
-            result = await session.execute(stmt)
+            await session.execute(stmt)
             await session.commit()
-            return result.mappings().one_or_none()
 
     @classmethod
     async def delete(cls, **data):
@@ -149,9 +154,32 @@ class WorkersDAO(BaseDAO):
             await session.execute(stmt)
             await session.commit()
 
+    @classmethod
+    async def get_free(cls, stop_list=tuple()):
+        async with async_session_maker() as session:
+            query = select(cls.model.__table__.columns).filter(cls.model.user_id.not_in(stop_list)).\
+                order_by(cls.model.total_month.asc()).limit(1)
+            result = await session.execute(query)
+            return result.mappings().all()
 
-class TransactionsDAO(BaseDAO):
-    model = TransactionsDB
+
+class OrdersDAO(BaseDAO):
+    model = OrdersDB
+
+    @classmethod
+    async def create_returning(cls, **data):
+        async with async_session_maker() as session:
+            stmt = insert(cls.model).values(**data).returning(cls.model.id)
+            result = await session.execute(stmt)
+            await session.commit()
+            return result.mappings().one_or_none()
+
+    @classmethod
+    async def update(cls, order_id: str, **data):
+        async with async_session_maker() as session:
+            stmt = update(cls.model).values(**data).filter_by(id=order_id)
+            await session.execute(stmt)
+            await session.commit()
 
 
 class CryptoAccountsDAO(BaseDAO):
@@ -161,6 +189,20 @@ class CryptoAccountsDAO(BaseDAO):
     async def update(cls, account_id: int, **data):
         async with async_session_maker() as session:
             stmt = update(cls.model).values(**data).filter_by(id=account_id)
+            await session.execute(stmt)
+            await session.commit()
+
+    @classmethod
+    async def get_one_by_processes(cls):
+        async with async_session_maker() as session:
+            query = select(cls.model.__table__.columns).order_by(cls.model.processes.asc()).limit(1)
+            result = await session.execute(query)
+            return result.mappings().one_or_none()
+
+    @classmethod
+    async def update_processes(cls, account_id: int, value: Literal[1, -1]):
+        async with async_session_maker() as session:
+            stmt = update(cls.model).values(day=cls.model.processes + value).filter_by(id=account_id)
             await session.execute(stmt)
             await session.commit()
 

@@ -13,3 +13,10 @@ class AdminFSM(BaseFSM):
 
 class ClientFSM(BaseFSM):
     coin_value = State()
+    bank_account = State()
+    comment = State()
+
+
+class WorkerFSM(BaseFSM):
+    check = State()
+    refuse_comment = State()

@@ -1,8 +1,6 @@
-from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.types import Message, CallbackQuery
 from aiogram import F, Router
-from cryptography.fernet import Fernet
 
 from create_bot import bot, config
 from tgbot.kernel.admin.filters import AdminFilter
@@ -15,6 +13,8 @@ router = Router()
 router.message.filter(AdminFilter())
 router.callback_query.filter(AdminFilter())
 
+inline = AccountsInlineKeyboard()
+
 
 admin_ids = config.tg_bot.admin_ids
 
@@ -23,7 +23,7 @@ admin_ids = config.tg_bot.admin_ids
 async def accounts(callback: CallbackQuery):
     text = "Список действующих аккаунтов"
     accounts_list = await CryptoAccountsDAO.get_many()
-    kb = AccountsInlineKeyboard.accounts_list_kb(accounts=accounts_list)
+    kb = inline.accounts_list_kb(accounts=accounts_list)
     await callback.message.answer(text, reply_markup=kb)
     await bot.answer_callback_query(callback.id)
 
@@ -33,20 +33,20 @@ async def accounts(callback: CallbackQuery, state: FSMContext):
     clb_data = callback.data.split(":")[1]
     if clb_data == "create":
         text = "Введите название аккаунта для удобной ориентации в системе"
-        kb = AccountsInlineKeyboard.home_kb()
+        kb = inline.home_kb()
         await state.set_state(AdminFSM.title_account)
         await callback.message.answer(text, reply_markup=kb)
     elif clb_data == "delete":
         account_id = int(callback.data.split(":")[2])
         await CryptoAccountsDAO.delete(id=account_id)
         accounts_list = await CryptoAccountsDAO.get_many()
-        kb = AccountsInlineKeyboard.accounts_list_kb(accounts=accounts_list)
+        kb = inline.accounts_list_kb(accounts=accounts_list)
         await callback.message.edit_reply_markup(reply_markup=kb)
     else:
         account_id = int(callback.data.split(":")[2])
         await CryptoAccountsDAO.update(account_id=account_id, status=clb_data)
         accounts_list = await CryptoAccountsDAO.get_many()
-        kb = AccountsInlineKeyboard.accounts_list_kb(accounts=accounts_list)
+        kb = inline.accounts_list_kb(accounts=accounts_list)
         await callback.message.edit_reply_markup(reply_markup=kb)
     await bot.answer_callback_query(callback.id)
 
@@ -61,7 +61,7 @@ async def accounts(message: Message, state: FSMContext):
         text = "Введите UID аккаунта"
         await state.update_data(account_title=message.text.strip())
         await state.set_state(AdminFSM.uid_account)
-    kb = AccountsInlineKeyboard.home_kb()
+    kb = inline.home_kb()
     await message.delete()
     await message.answer(text, reply_markup=kb)
 
@@ -69,7 +69,7 @@ async def accounts(message: Message, state: FSMContext):
 @router.message(F.text, AdminFSM.uid_account)
 async def accounts(message: Message, state: FSMContext):
     text = "Введите PRIVATE KEY аккаунта"
-    kb = AccountsInlineKeyboard.home_kb()
+    kb = inline.home_kb()
     await state.update_data(account_uid=message.text)
     await state.set_state(AdminFSM.private_key_account)
     await message.delete()
@@ -97,7 +97,7 @@ async def accounts(message: Message, state: FSMContext):
         )
     else:
         text = "Данные введены неверно"
-    kb = AccountsInlineKeyboard.home_kb()
+    kb = inline.home_kb()
     await message.delete()
     await message.answer(text, reply_markup=kb)
 

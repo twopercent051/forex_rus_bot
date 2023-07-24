@@ -1,0 +1,212 @@
+import time
+
+from aiogram.types import Message, CallbackQuery
+from aiogram import F, Router
+from aiogram.fsm.context import FSMContext
+from aiogram.utils.markdown import hcode
+
+from create_bot import bot, config
+from tgbot.kernel.client.inline import OrderInlineKeyboard
+from tgbot.kernel.worker.handlers.order_block import order_worker_render
+from tgbot.misc.states import ClientFSM
+from tgbot.models.sql_connector import CryptoAccountsDAO, WorkersDAO, OrdersDAO
+from tgbot.misc.fiat import fiat_calc
+from tgbot.services.garantex import GarantexAPI
+from tgbot.services.scheduler import CreateTask
+from tgbot.misc.workers import Workers
+
+router = Router()
+
+inline = OrderInlineKeyboard()
+
+moderator = config.tg_bot.moderator_group
+
+
+@router.callback_query(F.data.split(":")[0] == "order")
+async def order_block(callback: CallbackQuery):
+    order = callback.data.split(":")[1]
+    if order == "new":
+        free_accounts = await CryptoAccountsDAO.get_many(status="on")
+        if len(free_accounts) == 0:
+            text = "К сожалению, сейчас у нас нет возможности сделать перевод, попробуйте позднее или напишите нам в " \
+                   "поддержку"
+            kb = inline.home_kb()
+        else:
+            text = "Выберите банк, на который желаете получить перевод"
+            kb = inline.banks_kb()
+    else:  # История транзакций
+        pass
+    await callback.message.answer(text, reply_markup=kb)
+    await bot.answer_callback_query(callback.id)
+
+
+@router.callback_query(F.data.split(":")[0] == "bank")
+async def order_block(callback: CallbackQuery, state: FSMContext):
+    bank = callback.data.split(":")[1]
+    workers = await WorkersDAO.get_many()
+    free_workers = Workers.check_bank(workers=workers, bank=bank)
+    if len(free_workers) == 0:
+        text = "В настоящий момент нет предложения на обмен в этот банк. Выберите другой банк или попробуйте позднее"
+    else:
+        currency = await GarantexAPI.get_currency()
+        client_currency = fiat_calc(market_fiat=currency)["client_fiat"]
+        text = f"В настоящий момент обменный курс составляет <i>{client_currency / 100}</i>. Введите объём в USDT, " \
+               f"который хотите обменять. Число округляется до двух знаков после запятой"
+        await state.update_data(bank_name=bank)
+        await state.set_state(ClientFSM.coin_value)
+    kb = inline.home_kb()
+    await callback.message.answer(text, reply_markup=kb)
+    await bot.answer_callback_query(callback.id)
+
+
+@router.message(F.text, ClientFSM.coin_value)
+async def order_block(message: Message, state: FSMContext):
+    try:
+        coin_value = int(float(message.text.replace(",", ".")) * 100)
+    except ValueError:
+        text = "Введите число (разделитель точка или запятая). Число округляется до двух знаков после запятой"
+        await message.answer(text)
+        return
+    text = "Укажите номер карты, на которую хотите получить перевод. Номер указан на лицевой стороне карты и состоит " \
+           "из 16 цифр.\n\n<b>Внимание!\nНаши сотрудники никогда не запрашивают CVV-код с оборотной стороны карты " \
+           "либо смс-коды. Если вы столкнулись с такими случаями, это мошенники</b>"
+    kb = inline.home_kb()
+    await state.update_data(coin_value=coin_value)
+    await state.set_state(ClientFSM.bank_account)
+    await message.answer(text, reply_markup=kb)
+
+
+@router.message(F.text, ClientFSM.bank_account)
+async def order_block(message: Message, state: FSMContext):
+    text = "Введите комментарий если требуется"
+    kb = inline.pass_comment_kb()
+    await state.update_data(bank_account=message.text, coin="USDT")
+    await state.set_state(ClientFSM.comment)
+    await message.answer(text, reply_markup=kb)
+
+
+async def order_render(user_id: str | int, state: FSMContext):
+    state_data = await state.get_data()
+    market_currency = await GarantexAPI.get_currency()
+    market_fiat = state_data['coin_value'] * market_currency / 100
+    client_currency = fiat_calc(market_fiat=market_currency)
+    fiat_calc_dict = fiat_calc(market_fiat=market_fiat)
+    await state.update_data(currency=market_currency,
+                            client_fiat=fiat_calc_dict["client_fiat"],
+                            worker_fiat=fiat_calc_dict["worker_fiat"],
+                            profit_fiat=fiat_calc_dict["profit_fiat"])
+    text = [
+        "Проверьте введённые данные и подтвердите заявку:\n",
+        f"<b>Валюта к обмену:</b> <i>{state_data['coin']}</i>",
+        f"<b>Сумма к обмену:</b> <i>{state_data['coin_value'] / 100}</i>",
+        f"<b>Обменный курс:</b> <i>{client_currency['client_fiat'] / 100}</i>",
+        f"<b>Сумма к получению:</b> <i>{fiat_calc_dict['client_fiat'] / 100} ₽</i>",
+        f"<b>Банк:</b> <i>{state_data['bank_name']}</i>",
+        f"<b>Реквизиты:</b> <i>{state_data['bank_account']}</i>",
+        f"<b>Комментарий:</b> <i>{state_data['comment']}</i>\n",
+        "<u>Подтвердите заявку в течении 10 минут</u>"
+    ]
+    task_id = f"{user_id}_{int(time.time())}"
+    kb = inline.accept_order_kb(task_id=task_id)
+    msg = await bot.send_message(chat_id=user_id, text="\n".join(text), reply_markup=kb)
+    await state.set_state(ClientFSM.home)
+    await CreateTask.delete_order(user_id=user_id, message_id=msg.message_id, task_id=task_id)
+
+
+@router.message(F.text, ClientFSM.comment)
+async def order_block(message: Message, state: FSMContext):
+    await state.update_data(comment=message.text)
+    await order_render(user_id=message.from_user.id, state=state)
+
+
+@router.callback_query(F.data == "pass_comment")
+async def order_block(callback: CallbackQuery, state: FSMContext):
+    await state.update_data(comment="---")
+    await order_render(user_id=callback.from_user.id, state=state)
+    await bot.answer_callback_query(callback.id)
+
+
+@router.callback_query(F.data.split(":")[0] == "accept_order")
+async def order_block(callback: CallbackQuery, state: FSMContext):
+    task_id = callback.data.split(":")[1]
+    user_id = str(callback.from_user.id)
+    crypto_account = await CryptoAccountsDAO.get_one_by_processes()
+    wallet = await GarantexAPI.get_wallet(account_id=crypto_account["id"])
+    await CreateTask.delete_task(task_id=task_id)
+    state_data = await state.get_data()
+    client_username = f"@{callback.from_user.username}" if callback.from_user.username else "---"
+    order = await OrdersDAO.create_returning(
+        client_id=user_id,
+        client_username=client_username,
+        coin=state_data["coin"],
+        coin_value=state_data["coin_value"],
+        currency=state_data["currency"],
+        client_fiat=state_data["client_fiat"],
+        worker_fiat=state_data["worker_fiat"],
+        profit_fiat=state_data["profit_fiat"],
+        bank_name=state_data["bank_name"],
+        bank_account=state_data["bank_account"],
+        crypto_account={"id": crypto_account["id"], "title": crypto_account["title"]},
+        comment=state_data["comment"]
+    )
+    await CryptoAccountsDAO.update_processes(account_id=crypto_account["id"], value=1)
+    task_id = f"{user_id}_{int(time.time())}"
+    text = f"Ордер # {order['id']} создан.\n\n{hcode(wallet['address'])}\nСеть ERC20\n\nПереведите USDT на указанный " \
+           f"кошелёк. Время жизни заявки составляет 20 минут. По истечении этого времени заявка будет " \
+           f"отменена.\n\n<u>Внимание! Убедитесь, что вы выбрали верный адрес и сеть для перевода. При переводе на " \
+           f"неверный реквизиты ваши средства будут утеряны!</u>"
+    kb = inline.order_paid_kb(order_id=order["id"], task_id=task_id)
+    msg = await callback.message.answer(text, reply_markup=kb)
+    await CreateTask.cancel_order(user_id=user_id, message_id=msg.message_id, order_id=order["id"], task_id=task_id)
+
+
+@router.callback_query(F.data.split(":")[0] == "cancel_order")
+async def order_block(callback: CallbackQuery):
+    order_id = int(callback.data.split(":")[1])
+    task_id = int(callback.data.split(":")[2])
+    text = f"Ордер # {order_id} отменён"
+    kb = inline.home_kb()
+    await CreateTask.delete_task(task_id=task_id)
+    await OrdersDAO.update(order_id=order_id, status="cancelled")
+    await callback.message.answer(text, reply_markup=kb)
+    await bot.answer_callback_query(callback.id)
+
+
+@router.callback_query(F.data.split(":")[0] == "paid")
+async def order_block(callback: CallbackQuery):
+    order_id = int(callback.data.split(":")[1])
+    task_id = callback.data.split(":")[2]
+    order = await OrdersDAO.get_one_or_none(id=order_id)
+    if order["status"] in ["paid_client", "paid_worker"]:
+        text = "Мы уже обрабатываем заявку"
+        await callback.message.answer(text)
+        return
+    if order["status"] in ["finished", "cancelled"]:
+        text = "Заявка завершена"
+        await callback.message.answer(text)
+        return
+    if order["status"] == "created":
+        await OrdersDAO.update(order_id=order_id, status="paid_client")
+        account_id = order["crypto_account"]["id"]
+        start_time = order["dtime"]
+        coin_value = order["coin_value"]
+        payment_status = await GarantexAPI.get_deposit_history(account_id=account_id, start_time=start_time,
+                                                               coin_value=coin_value)
+        # if payment_status:
+        if True:
+            text = "✅ Мы получили перевод. Ожидайте, в ближайшее время вы получите перевод на банковский счёт."
+            kb = inline.home_kb()
+            free_worker = await WorkersDAO.get_free()
+            if len(free_worker) == 0:
+                mod_text = f"⚠️ На заявку № {order_id} не удалось найти отправителя"
+                await bot.send_message(chat_id=moderator, text=mod_text)
+            else:
+                await order_worker_render(order=order, worker_id=free_worker[0]["user_id"])
+            await CryptoAccountsDAO.update_processes(account_id=account_id, value=-1)
+        else:
+            text = "Мы пока не получили перевод. Попробуйте ещё раз позднее. Не переживайте, если в течении 30 минут " \
+                   "статус не изменится смело пишите в поддержку"
+            kb = inline.order_paid_kb(order_id=order["id"], task_id=task_id)
+        await CreateTask.delete_task(task_id=task_id)
+        await callback.message.answer(text, reply_markup=kb)
+        await bot.answer_callback_query(callback.id)

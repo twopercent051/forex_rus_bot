@@ -7,20 +7,24 @@ from sqlalchemy.exc import IntegrityError
 from create_bot import config, bot
 from tgbot.kernel.client.inline import InlineKeyboard
 from tgbot.misc.states import ClientFSM
+from tgbot.misc.workers import Workers
 from tgbot.models.redis_connector import RedisConnector
 from tgbot.models.sql_connector import ClientsDAO
 from tgbot.services.garantex import GarantexAPI
 
 router = Router()
 
+inline = InlineKeyboard()
+
 admin_ids = config.tg_bot.admin_ids
 
 
 @router.message(Command('test'))
 async def test(message: Message):
-    a = await GarantexAPI.get_currency()
-    print(a)
-
+    user_id = '1234'
+    username = 'skfjvndf'
+    user = await ClientsDAO.create_ret(user_id=user_id, username=username)
+    print(user)
 
 @router.message(Command("become_worker"))
 async def become_worker(message: Message):
@@ -28,9 +32,10 @@ async def become_worker(message: Message):
         workers = await RedisConnector.get_role_redis()
         if str(message.from_user.id) in workers:
             text = "Вы уже являетесь работником 🤷"
+            await Workers.create_worker(worker_id=message.from_user.id, worker_username=message.from_user.username)
         else:
             admin_text = f"⚠️ Пользователь @{message.from_user.username} подал заявку, чтобы стать работником"
-            kb = InlineKeyboard.become_worker_kb(user_id=message.from_user.id, username=message.from_user.username)
+            kb = inline.become_worker_kb(user_id=message.from_user.id, username=message.from_user.username)
             text = "Запрос отправлен. Ожидайте решения администратора"
             for admin in admin_ids:
                 await bot.send_message(chat_id=admin, text=admin_text, reply_markup=kb)
