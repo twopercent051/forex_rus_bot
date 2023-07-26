@@ -184,8 +184,8 @@ async def order_block(callback: CallbackQuery):
         payment_status = await GarantexAPI.get_deposit_history(account_id=account_id,
                                                                start_time=start_time,
                                                                coin_value=coin_value)
-        # if payment_status:
-        if True:
+        if payment_status:
+        # if True:
             text = "✅ Мы получили перевод. Ожидайте, в ближайшее время вы получите перевод на банковский счёт."
             kb = inline.home_kb()
             if order["worker_id"] is None or order["worker_id"] == "---":
