@@ -4,7 +4,7 @@ from aiogram import F, Router
 
 from create_bot import bot, config
 from tgbot.kernel.admin.filters import AdminFilter
-from tgbot.kernel.admin.inline import AccountsInlineKeyboard
+from tgbot.kernel.admin.inline import AdminAccountsInlineKeyboard
 from tgbot.misc.states import AdminFSM
 from tgbot.models.sql_connector import CryptoAccountsDAO
 from tgbot.services.garantex import GarantexAPI
@@ -13,8 +13,7 @@ router = Router()
 router.message.filter(AdminFilter())
 router.callback_query.filter(AdminFilter())
 
-inline = AccountsInlineKeyboard()
-
+inline = AdminAccountsInlineKeyboard()
 
 admin_ids = config.tg_bot.admin_ids
 
@@ -89,17 +88,12 @@ async def accounts(message: Message, state: FSMContext):
         encrypted_uid = GarantexAPI.encrypt(data=state_data["account_uid"])
         encrypted_private_key = GarantexAPI.encrypt(data=private_key)
         encrypted_jwt = GarantexAPI.encrypt(data=jwt_token)
-        await CryptoAccountsDAO.create(
-            title=state_data['account_title'],
-            jwt=encrypted_jwt,
-            private_key=encrypted_private_key,
-            uid=encrypted_uid
-        )
+        await CryptoAccountsDAO.create(title=state_data['account_title'],
+                                       jwt=encrypted_jwt,
+                                       private_key=encrypted_private_key,
+                                       uid=encrypted_uid)
     else:
         text = "Данные введены неверно"
     kb = inline.home_kb()
     await message.delete()
     await message.answer(text, reply_markup=kb)
-
-
-

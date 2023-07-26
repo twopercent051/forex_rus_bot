@@ -34,3 +34,4 @@ pydantic~=1.10.7
 SQLAlchemy~=2.0.15
 PyJWT~=2.8.0
 cryptography~=41.0.2
+openpyxl~=3.1.2

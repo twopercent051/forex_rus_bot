@@ -1,9 +1,5 @@
-def test(string: list, a: str) -> str:
-    for s in string:
-        if s == a:
-            return True
-    return False
+a = "1"
+b = "g"
 
+print(a.isdigit(), b.isdigit(), sep="\n")
 
-r = test(string="qwerty", a="i")
-print(r)

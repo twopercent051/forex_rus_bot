@@ -15,8 +15,17 @@ class ClientFSM(BaseFSM):
     coin_value = State()
     bank_account = State()
     comment = State()
+    support = State()
 
 
 class WorkerFSM(BaseFSM):
     check = State()
     refuse_comment = State()
+    support = State()
+
+
+class ModeratorFSM(BaseFSM):
+    refuse_comment = State()
+    check = State()
+    find_order = State()
+    support = State()

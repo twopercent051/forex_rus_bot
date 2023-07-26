@@ -5,26 +5,19 @@ from aiogram.fsm.context import FSMContext
 from sqlalchemy.exc import IntegrityError
 
 from create_bot import config, bot
-from tgbot.kernel.client.inline import InlineKeyboard
+from tgbot.kernel.client.inline import ClientInlineKeyboard
+from tgbot.kernel.client.render import main_menu_render
 from tgbot.misc.states import ClientFSM
 from tgbot.misc.workers import Workers
 from tgbot.models.redis_connector import RedisConnector
 from tgbot.models.sql_connector import ClientsDAO
-from tgbot.services.garantex import GarantexAPI
 
 router = Router()
 
-inline = InlineKeyboard()
+inline = ClientInlineKeyboard()
 
 admin_ids = config.tg_bot.admin_ids
 
-
-@router.message(Command('test'))
-async def test(message: Message):
-    user_id = '1234'
-    username = 'skfjvndf'
-    user = await ClientsDAO.create_ret(user_id=user_id, username=username)
-    print(user)
 
 @router.message(Command("become_worker"))
 async def become_worker(message: Message):
@@ -43,17 +36,6 @@ async def become_worker(message: Message):
         text = "Вам нужно создать username в Телеграм чтобы стать работником. После этого повторите запрос"
     await message.delete()
     await message.answer(text=text)
-
-
-async def main_menu_render(user_id: int | str, start: bool):
-    if start:
-        text = "Добро пожаловать в ForexRub. Здесь вы можете быстро обменять USDT в рубль переводом на карту " \
-               "Сбербанка или Тинькофф. Просто создайте заявку. Если у вас возникнут какие-либо вопросы смело пишите " \
-               "в поддержку, ответим в ближайшее время"
-    else:
-        text = "Главное меню"
-    kb = InlineKeyboard.main_menu_kb()
-    await bot.send_message(chat_id=user_id, text=text, reply_markup=kb)
 
 
 @router.message(Command("start"))

@@ -3,7 +3,7 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from tgbot.misc.workers import Workers
 
 
-class InlineKeyboard:
+class WorkerInlineKeyboard:
 
     def __init__(self):
         pass
@@ -19,12 +19,14 @@ class InlineKeyboard:
     @staticmethod
     def main_menu_kb():
         keyboard = [
-            [InlineKeyboardButton(text="🛠 Настройки", callback_data="settings")]
+            [InlineKeyboardButton(text="🛠 Настройки", callback_data="settings")],
+            [InlineKeyboardButton(text="📈 Статистика", callback_data="statistic")],
+            [InlineKeyboardButton(text="❓ Поддержка", callback_data="support")],
         ]
         return InlineKeyboardMarkup(inline_keyboard=keyboard)
 
 
-class SettingsInlineKeyboard(InlineKeyboard):
+class WorkerSettingsInlineKeyboard(WorkerInlineKeyboard):
 
     def settings_kb(self, worker: dict):
         emodji = {
@@ -49,7 +51,7 @@ class SettingsInlineKeyboard(InlineKeyboard):
         return InlineKeyboardMarkup(inline_keyboard=keyboard)
 
 
-class OrderInlineKeyboard(InlineKeyboard):
+class WorkerOrderInlineKeyboard(WorkerInlineKeyboard):
 
     @staticmethod
     def get_order_kb(order_id: int):
@@ -70,8 +72,8 @@ class OrderInlineKeyboard(InlineKeyboard):
     def moderation_order_kb(order_id: int):
         keyboard = [
             [
-                InlineKeyboardButton(text="🟩 Принять", callback_data=f"worker_order:accept:{order_id}"),
-                InlineKeyboardButton(text="🟥 Отклонить", callback_data=f"worker_order:refuse:{order_id}"),
+                InlineKeyboardButton(text="🟩 Принять", callback_data=f"moderation_order:accept:{order_id}"),
+                InlineKeyboardButton(text="🟥 Отклонить", callback_data=f"moderation_order:refuse:{order_id}"),
             ]
         ]
         return InlineKeyboardMarkup(inline_keyboard=keyboard)

@@ -1,17 +1,17 @@
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 
-class InlineKeyboard:
+class ClientInlineKeyboard:
 
     def __init__(self):
         pass
 
     def home_kb(self):
-        keyboard = [self._home_button()]
+        keyboard = [self.home_button()]
         return InlineKeyboardMarkup(inline_keyboard=keyboard)
 
     @staticmethod
-    def _home_button():
+    def home_button():
         return [InlineKeyboardButton(text="🏡 Главное меню", callback_data="home")]
 
     @staticmethod
@@ -27,14 +27,14 @@ class InlineKeyboard:
     @staticmethod
     def main_menu_kb():
         keyboard = [
-            [InlineKeyboardButton(text="➕ Новая заявка", callback_data="order:new")],
-            [InlineKeyboardButton(text="📄 История транзакций", callback_data="order:history")],
+            [InlineKeyboardButton(text="➕ Новый ордер", callback_data="order:new")],
+            [InlineKeyboardButton(text="📄 История ордеров", callback_data="order:history")],
             [InlineKeyboardButton(text="❓ Поддержка", callback_data="support")],
         ]
         return InlineKeyboardMarkup(inline_keyboard=keyboard)
 
 
-class OrderInlineKeyboard(InlineKeyboard):
+class ClientOrderInlineKeyboard(ClientInlineKeyboard):
 
     def banks_kb(self):
         keyboard = [
@@ -42,21 +42,21 @@ class OrderInlineKeyboard(InlineKeyboard):
                 InlineKeyboardButton(text="🟩 SBERBANK", callback_data="bank:SBERBANK"),
                 InlineKeyboardButton(text="🟨 TINKOFF", callback_data="bank:TINKOFF"),
             ],
-            self._home_button()
+            self.home_button()
         ]
         return InlineKeyboardMarkup(inline_keyboard=keyboard)
 
     def pass_comment_kb(self):
         keyboard = [
             [InlineKeyboardButton(text="↪️ Пропустить", callback_data="pass_comment")],
-            self._home_button()
+            self.home_button()
         ]
         return InlineKeyboardMarkup(inline_keyboard=keyboard)
 
     def accept_order_kb(self, task_id: str):
         keyboard = [
             [InlineKeyboardButton(text="✅ Подтвердить", callback_data=f"accept_order:{task_id}")],
-            self._home_button()
+            self.home_button()
         ]
         return InlineKeyboardMarkup(inline_keyboard=keyboard)
 
@@ -67,3 +67,20 @@ class OrderInlineKeyboard(InlineKeyboard):
             [InlineKeyboardButton(text="❌ Отменить ордер", callback_data=f"ct:{order_id}:{task_id}")],
         ]
         return InlineKeyboardMarkup(inline_keyboard=keyboard)
+
+    def orders_history_kb(self, orders: list):
+        keyboard = []
+        for order in orders:
+            keyboard.append([InlineKeyboardButton(text=f"Ордер № {order['id']}",
+                                                  callback_data=f"order_profile:{order['id']}")])
+        keyboard.append(self.home_button())
+        return InlineKeyboardMarkup(inline_keyboard=keyboard)
+
+    def support_order_kb(self):
+        keyboard = [
+            [InlineKeyboardButton(text="❓ Поддержка", callback_data="support")],
+            self.home_button()
+        ]
+        return InlineKeyboardMarkup(inline_keyboard=keyboard)
+
+

@@ -8,6 +8,7 @@ from aiogram.fsm.storage.redis import RedisStorage
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from tgbot.config import load_config
+from tgbot.middlewares.album_mw import AlbumMiddleware
 from tgbot.middlewares.config import ConfigMiddleware
 
 config = load_config(".env")
@@ -27,4 +28,5 @@ DATABASE_URL = f'postgresql+asyncpg://{config.db.user}:{config.db.password}@{con
 
 def register_global_middlewares(dp: Dispatcher, config):
     dp.message.outer_middleware(ConfigMiddleware(config))
+    dp.message.outer_middleware(AlbumMiddleware(config))
     dp.callback_query.outer_middleware(ConfigMiddleware(config))

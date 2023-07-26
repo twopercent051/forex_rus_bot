@@ -5,15 +5,15 @@ from aiogram import F, Router
 
 from create_bot import bot, config
 from tgbot.kernel.admin.filters import AdminFilter
-from tgbot.kernel.admin.inline import InlineKeyboard
-from tgbot.misc.states import AdminFSM
+from tgbot.kernel.admin.inline import AdminInlineKeyboard
+from tgbot.kernel.admin.render import main_menu_render
 from tgbot.misc.workers import Workers
 
 router = Router()
 router.message.filter(AdminFilter())
 router.callback_query.filter(AdminFilter())
 
-inline = InlineKeyboard()
+inline = AdminInlineKeyboard()
 
 
 admin_ids = config.tg_bot.admin_ids
@@ -33,13 +33,6 @@ async def new_worker(callback: CallbackQuery):
     for admin in admin_ids:
         await bot.send_message(chat_id=admin, text=text)
     await bot.send_message(chat_id=user_id, text=user_text)
-
-
-async def main_menu_render(user_id: int | str, start: bool, state: FSMContext):
-    text = "Добро пожаловать в клуб. Вы вошли как СУПЕРПОЛЬЗОВАТЕЛЬ" if start else "ГЛАВНОЕ МЕНЮ"
-    kb = inline.main_menu_kb()
-    await state.set_state(AdminFSM.home)
-    await bot.send_message(chat_id=user_id, text=text, reply_markup=kb)
 
 
 @router.message(Command("start"))

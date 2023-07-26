@@ -5,7 +5,7 @@ from aiogram.fsm.context import FSMContext
 
 from create_bot import bot
 from tgbot.kernel.worker.filters import WorkerFilter
-from tgbot.kernel.worker.inline import InlineKeyboard
+from tgbot.kernel.worker.inline import WorkerInlineKeyboard
 from tgbot.misc.states import WorkerFSM
 from tgbot.services.garantex import GarantexAPI
 
@@ -13,7 +13,7 @@ router = Router()
 router.message.filter(WorkerFilter())
 router.callback_query.filter(WorkerFilter())
 
-inline = InlineKeyboard()
+inline = WorkerInlineKeyboard()
 
 
 async def main_menu(user_id: int | str, state: FSMContext):

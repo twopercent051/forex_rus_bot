@@ -1,7 +1,9 @@
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
+from tgbot.models.sql_connector import WorkersDAO
 
-class InlineKeyboard:
+
+class AdminInlineKeyboard:
 
     def __init__(self):
         pass
@@ -9,22 +11,22 @@ class InlineKeyboard:
     @staticmethod
     def main_menu_kb():
         keyboard = [
-            [
-                InlineKeyboardButton(text="Аккаунты Garantex", callback_data="accounts"),
-            ]
+            [InlineKeyboardButton(text="📝 Аккаунты Garantex", callback_data="accounts")],
+            [InlineKeyboardButton(text="🔧 Воркеры", callback_data="workers")],
+            [InlineKeyboardButton(text="📈 Статистика", callback_data="statistic")],
         ]
         return InlineKeyboardMarkup(inline_keyboard=keyboard)
 
     def home_kb(self):
-        keyboard = [self._home_button()]
+        keyboard = [self.home_button()]
         return InlineKeyboardMarkup(inline_keyboard=keyboard)
 
     @staticmethod
-    def _home_button():
+    def home_button():
         return [InlineKeyboardButton(text="🏡 На главную", callback_data="home")]
 
 
-class AccountsInlineKeyboard(InlineKeyboard):
+class AdminAccountsInlineKeyboard(AdminInlineKeyboard):
 
     def accounts_list_kb(self, accounts: list):
         keyboard = []
@@ -41,5 +43,28 @@ class AccountsInlineKeyboard(InlineKeyboard):
                 ]
             )
         keyboard.append([InlineKeyboardButton(text="➕ Добавить аккаунт", callback_data=f"account:create")])
-        keyboard.append(self._home_button())
+        keyboard.append(self.home_button())
+        return InlineKeyboardMarkup(inline_keyboard=keyboard)
+
+
+class AdminWorkersInlineKeyboard(AdminInlineKeyboard):
+
+    async def workers_list_kb(self, workers: list):
+        keyboard = []
+        for worker_id in workers:
+            worker = await WorkersDAO.get_one_or_none(user_id=str(worker_id))
+            keyboard.append(
+                [
+                    InlineKeyboardButton(text=worker["username"], callback_data=f"worker:{worker_id}"),
+                    InlineKeyboardButton(text="🫵 Уволить", callback_data=f"worker_delete:{worker_id}"),
+                ]
+            )
+        keyboard.append(self.home_button())
+        return InlineKeyboardMarkup(inline_keyboard=keyboard)
+
+    def delete_worker_kb(self, worker_id: str | int):
+        keyboard = [
+            [InlineKeyboardButton(text="🫵 Уволить", callback_data=f"worker_delete:{worker_id}")],
+            self.home_button()
+        ]
         return InlineKeyboardMarkup(inline_keyboard=keyboard)

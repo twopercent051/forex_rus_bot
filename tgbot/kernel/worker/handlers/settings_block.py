@@ -3,7 +3,7 @@ from aiogram import F, Router
 
 from create_bot import bot
 from tgbot.kernel.worker.filters import WorkerFilter
-from tgbot.kernel.worker.inline import SettingsInlineKeyboard
+from tgbot.kernel.worker.inline import WorkerSettingsInlineKeyboard
 from tgbot.models.sql_connector import WorkersDAO
 from tgbot.misc.workers import Workers
 
@@ -11,7 +11,7 @@ router = Router()
 router.message.filter(WorkerFilter())
 router.callback_query.filter(WorkerFilter())
 
-inline = SettingsInlineKeyboard()
+inline = WorkerSettingsInlineKeyboard()
 
 
 @router.callback_query(F.data == "settings")

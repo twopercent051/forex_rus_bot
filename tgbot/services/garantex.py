@@ -1,3 +1,4 @@
+import asyncio
 import base64
 import time
 import datetime
@@ -34,7 +35,7 @@ class GarantexAPI:
             return None
         iat = int(time.mktime(datetime.datetime.now().timetuple()))
         claims = {
-            "exp": iat + 1.5 * 60 * 60,  # expire duration 1.5 hours
+            "exp": iat + 12 * 60 * 60,  # expire duration 12 hours
             "jti": hex(random.getrandbits(12)).upper()
         }
         jwt_token = jwt.encode(claims, key, algorithm="RS256")
@@ -66,11 +67,6 @@ class GarantexAPI:
             average += float(item["price"])
         return int((average * 100) / 20)
 
-    # @classmethod
-    # async def get_client_currency(cls):
-    #     market_currency = await cls.get_currency()
-    #     return market_currency * (1 - config.params.client_commission)
-
     @classmethod
     async def get_deposit_history(cls, account_id: int, start_time: datetime, coin_value: float) -> bool:
         token = await cls.get_jwt(account_id=account_id)
@@ -82,4 +78,40 @@ class GarantexAPI:
             if float(item["amount"]) * (1 - 0.007) <= coin_value <= float(item["amount"]):
                 return True
         return False
+
+    @classmethod
+    async def get_balance(cls, account_id: int, token=None):
+        if token is None:
+            token = await cls.get_jwt(account_id=account_id)
+        ret = requests.get('https://garantex.io/api/v2/accounts/usdt',
+                           headers={'Authorization': f'Bearer {token}'})
+        result = ret.json()
+        return int(float(result["balance"])) - int(float(result["locked"]))
+
+    @classmethod
+    async def usdt_to_rub_market(cls, account_id: int):
+        token = await cls.get_jwt(account_id=account_id)
+        balance = await cls.get_balance(account_id=account_id, token=token)
+        ret = requests.post('https://garantex.io/api/v2/orders',
+                            data={"market": "usdtrub", "volume": str(balance), "side": "sell", "ord_type": "default"},
+                            headers={'Authorization': f'Bearer {token}'})
+        result = ret.json()
+        try:
+            error = str(result["error"])
+            return error
+        except KeyError:
+            return False
+
+    @classmethod
+    async def create_garantex_code(cls, account_id: int, amount: float):
+        token = await cls.get_jwt(account_id=account_id)
+        ret = requests.post('https://garantex.io/api/v2/depositcodes/create',
+                            data={"currency": "rub", "amount": str(amount)},
+                            headers={'Authorization': f'Bearer {token}'})
+        result = ret.json()
+        try:
+            error = str(result["error"]), 500
+            return error
+        except KeyError:
+            return result["code"], 200
 

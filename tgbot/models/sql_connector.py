@@ -49,7 +49,6 @@ class WorkersDB(Base):
     id = Column(Integer, nullable=False, autoincrement=True, primary_key=True)
     user_id = Column(String, nullable=False, unique=True)
     username = Column(String, nullable=False)
-    wallet = Column(String, nullable=True)
     general_status = Column(String, nullable=False, default="off")  # off on deleted
     bank_status = Column(JSON, nullable=False, default={"SBERBANK": "off", "TINKOFF": "off"})
     total_month = Column(Integer, nullable=False, default=0)
@@ -71,13 +70,14 @@ class OrdersDB(Base):
     client_fiat = Column(Integer, nullable=False)
     worker_fiat = Column(Integer, nullable=False)
     profit_fiat = Column(Integer, nullable=False)
-    status = Column(String, nullable=False, default="created")  # created paid_client paid_worker (accepted refused) finished cancelled
+    status = Column(String, nullable=False, default="created")  # created paid_client accepted refused finished cancelled
     worker_id = Column(String, nullable=True)
     moderator_id = Column(String, nullable=True)
     crypto_account = Column(JSON, nullable=False)  # title + id
     comment = Column(TEXT, nullable=True)
-    stop_list = Column(JSON, nullable=False, default=[])
-    refuse_comments = Column(JSON, nullable=False, default=[])
+    stop_list = Column(JSON, nullable=False, default=[])  # worker_id
+    refuse_comments = Column(JSON, nullable=False, default=[])  # worker_username + text
+    document_id = Column(String, nullable=True)
 
 
 class CryptoAccountsDB(Base):
@@ -121,7 +121,7 @@ class BaseDAO:
     @classmethod
     async def get_many(cls, **filter_by) -> list:
         async with async_session_maker() as session:
-            query = select(cls.model.__table__.columns).filter_by(**filter_by)
+            query = select(cls.model.__table__.columns).filter_by(**filter_by).order_by(cls.model.id.asc())
             result = await session.execute(query)
             return result.mappings().all()
 
@@ -155,12 +155,32 @@ class WorkersDAO(BaseDAO):
             await session.commit()
 
     @classmethod
-    async def get_free(cls, stop_list=tuple()):
+    async def get_free(cls, bank: Literal["SBERBANK", "TINKOFF"], stop_list=tuple()):
         async with async_session_maker() as session:
             query = select(cls.model.__table__.columns).filter(cls.model.user_id.not_in(stop_list)).\
                 order_by(cls.model.total_month.asc()).limit(1)
             result = await session.execute(query)
-            return result.mappings().all()
+            workers = result.mappings().all()
+            result = []
+            for worker in workers:
+                if worker["bank_status"][bank] == "on":
+                    result.append(worker)
+            return result
+
+    @classmethod
+    async def update_total_month(cls, worker_id: str, value: Literal[1, -1]):
+        async with async_session_maker() as session:
+            stmt = update(cls.model).values(total_month=cls.model.total_month + value).filter_by(user_id=worker_id)
+            await session.execute(stmt)
+            await session.commit()
+
+    @classmethod
+    async def reset_total_month(cls):
+        async with async_session_maker() as session:
+            value = dict(total_month=0)
+            stmt = update(cls.model).values(value)
+            await session.execute(stmt)
+            await session.commit()
 
 
 class OrdersDAO(BaseDAO):
@@ -180,6 +200,22 @@ class OrdersDAO(BaseDAO):
             stmt = update(cls.model).values(**data).filter_by(id=order_id)
             await session.execute(stmt)
             await session.commit()
+
+    @classmethod
+    async def get_active(cls):
+        async with async_session_maker() as session:
+            active_status = ["created", "paid_client", "paid_worker", "refused"]
+            query = select(cls.model.__table__.columns).filter(cls.model.status.in_(active_status)).\
+                order_by(cls.model.id.asc()).limit(30)
+            result = await session.execute(query)
+            return result.mappings().all()
+
+    @classmethod
+    async def get_last(cls):
+        async with async_session_maker() as session:
+            query = select(cls.model.__table__.columns).order_by(cls.model.id.asc()).limit(10)
+            result = await session.execute(query)
+            return result.mappings().all()
 
 
 class CryptoAccountsDAO(BaseDAO):
@@ -202,7 +238,7 @@ class CryptoAccountsDAO(BaseDAO):
     @classmethod
     async def update_processes(cls, account_id: int, value: Literal[1, -1]):
         async with async_session_maker() as session:
-            stmt = update(cls.model).values(day=cls.model.processes + value).filter_by(id=account_id)
+            stmt = update(cls.model).values(processes=cls.model.processes + value).filter_by(id=account_id)
             await session.execute(stmt)
             await session.commit()
 
